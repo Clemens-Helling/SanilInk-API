@@ -8,11 +8,18 @@
       <jdbc-url>jdbc:mysql://localhost:3306/sani_link_api</jdbc-url>
       <working-dir>$ProjectFileDir$</working-dir>
     </data-source>
-    <data-source source="LOCAL" name="SaniLink@localhost" uuid="ba877b0b-6ce8-4d1a-b59e-d35554ffd305">
+    <data-source source="LOCAL" name="sanilink_dev@localhost" uuid="0c9ef64e-f6f1-4a21-9cbf-f6c37a901560">
       <driver-ref>postgresql</driver-ref>
       <synchronize>true</synchronize>
       <jdbc-driver>org.postgresql.Driver</jdbc-driver>
-      <jdbc-url>jdbc:postgresql://localhost:5432/SaniLink</jdbc-url>
+      <jdbc-url>jdbc:postgresql://localhost:5432/sanilink_dev</jdbc-url>
+      <working-dir>$ProjectFileDir$</working-dir>
+    </data-source>
+    <data-source source="LOCAL" name="sanilink_test@localhost" uuid="26c38298-beec-4481-ae1b-74ec3e9c1929">
+      <driver-ref>postgresql</driver-ref>
+      <synchronize>true</synchronize>
+      <jdbc-driver>org.postgresql.Driver</jdbc-driver>
+      <jdbc-url>jdbc:postgresql://localhost:5433/sanilink_test</jdbc-url>
       <working-dir>$ProjectFileDir$</working-dir>
     </data-source>
   </component>

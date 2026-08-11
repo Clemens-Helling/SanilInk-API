@@ -2,7 +2,6 @@ from fastapi import APIRouter
 
 router = APIRouter()
 
-
-@router.get("/hello")
+@router.get("/")
 async def say_hello():
-    return {"message": "Hallo!"}
+    return {"message": "Hello from tenants router!"}
