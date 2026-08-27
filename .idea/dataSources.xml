@@ -1,13 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="DataSourceManagerImpl" format="xml" multifile-model="true">
-    <data-source source="LOCAL" name="sani_link_api@localhost" uuid="49f90ef4-261a-496a-9315-2570b5176ccb">
-      <driver-ref>mysql.8</driver-ref>
-      <synchronize>true</synchronize>
-      <jdbc-driver>com.mysql.cj.jdbc.Driver</jdbc-driver>
-      <jdbc-url>jdbc:mysql://localhost:3306/sani_link_api</jdbc-url>
-      <working-dir>$ProjectFileDir$</working-dir>
-    </data-source>
     <data-source source="LOCAL" name="sanilink_dev@localhost" uuid="0c9ef64e-f6f1-4a21-9cbf-f6c37a901560">
       <driver-ref>postgresql</driver-ref>
       <synchronize>true</synchronize>

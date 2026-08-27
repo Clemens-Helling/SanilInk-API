@@ -15,6 +15,7 @@ class RegisterRequest(BaseModel):
     4. Client: generate GEK (if first user in tenant) and encrypt it
     5. Client: send all of above to server
     """
+
     customer_number: str = Field(..., min_length=1, max_length=100)
     username: str = Field(..., min_length=3, max_length=255)
     email: EmailStr
@@ -49,6 +50,7 @@ class RegisterRequest(BaseModel):
 
 class RegisterResponse(BaseModel):
     """Response after successful registration."""
+
     model_config = ConfigDict(from_attributes=True)
 
     user_id: int
@@ -63,6 +65,7 @@ class LoginInitRequest(BaseModel):
     Step 1 of SCRAM-proof login: Client requests challenge.
     Server responds with nonce + Argon2id parameters.
     """
+
     email: EmailStr
     customer_number: str
 
@@ -72,6 +75,7 @@ class LoginInitResponse(BaseModel):
     Step 1 response: Server sends challenge_nonce + Argon2id parameters.
     Client will use these to derive hmac_key and compute ClientProof.
     """
+
     challenge_nonce: str = Field(..., min_length=40)  # Base64-encoded
     argon2_salt_b: str  # For hmac_key derivation
     argon2_time_cost_b: int
@@ -89,6 +93,7 @@ class LoginVerifyRequest(BaseModel):
       - recovered_hmac_key = ClientProof XOR ClientSignature
       - valid if SHA256(recovered_hmac_key) == stored_key
     """
+
     email: EmailStr
     customer_number: str
     challenge_nonce: str = Field(..., min_length=40)
@@ -97,6 +102,7 @@ class LoginVerifyRequest(BaseModel):
 
 class LoginVerifyResponse(BaseModel):
     """Response after successful login."""
+
     model_config = ConfigDict(from_attributes=True)
 
     access_token: str
@@ -106,8 +112,23 @@ class LoginVerifyResponse(BaseModel):
     message: str = "Login successful"
 
 
+class UserCryptoMaterialResponse(BaseModel):
+    """Opaque key material the client decrypts after a successful login."""
+
+    user_id: int
+    public_key: str
+    encrypted_private_key: str
+    argon2_salt_a: str
+    argon2_time_cost_a: int
+    argon2_memory_cost_a: int
+    argon2_parallelism_a: int
+    ephemeral_public_key: str
+    encrypted_gek: str
+
+
 class UserRegistration(BaseModel):
     """Legacy model - kept for backward compatibility."""
+
     tenant_name: str
     username: str
     public_key: str
