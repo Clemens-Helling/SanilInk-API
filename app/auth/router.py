@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_db
+from app.core.database import get_db, get_tenant_db
 from app.core.security import get_current_token_payload
 from app.auth.schemas import (
     RegisterRequest,
@@ -83,7 +83,7 @@ async def login_verify(
 @router.get("/me/keys", response_model=UserCryptoMaterialResponse)
 async def get_my_crypto_material(
     payload: dict = Depends(get_current_token_payload),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_tenant_db),
 ) -> UserCryptoMaterialResponse:
     try:
         user_key, key_slot = await AuthService.get_user_crypto_material(

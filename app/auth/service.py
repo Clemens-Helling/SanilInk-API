@@ -27,6 +27,7 @@ from app.users.models import User, UserKey, CustomerKeySlot
 from app.tenants.models import Tenant
 from app.users.schemas import UserCreate, UserKeyCreate, CustomerKeySlotCreate
 from app.auth.schemas import LoginInitRequest, LoginVerifyRequest, RegisterRequest
+from app.core.database import set_tenant_context
 
 
 class RegistrationError(Exception):
@@ -125,6 +126,8 @@ class AuthService:
                 db.add(tenant)
                 await db.flush()
 
+            await set_tenant_context(db, tenant.customer_id)
+
             # Create user
             user = User(
                 customer_id=tenant.customer_id,
@@ -193,9 +196,20 @@ class AuthService:
                 LoginError: If user not found
         """
         result = await db.execute(
+            select(Tenant).where(
+                Tenant.customer_number == login_init_request.customer_number
+            )
+        )
+        tenant = result.scalar_one_or_none()
+        if tenant is None:
+            raise LoginError("User not found")
+        await set_tenant_context(db, tenant.customer_id)
+
+        result = await db.execute(
             select(User).where(
                 and_(
                     User.email == login_init_request.email,
+                    User.customer_id == tenant.customer_id,
                     User.is_active == True,
                 )
             )
@@ -204,15 +218,6 @@ class AuthService:
 
         if not user:
             raise LoginError("User not found")
-
-        # Verify customer_number matches
-        result = await db.execute(
-            select(Tenant).where(Tenant.customer_id == user.customer_id)
-        )
-        tenant = result.scalar_one()
-
-        if tenant.customer_number != login_init_request.customer_number:
-            raise LoginError("Invalid tenant")
 
         # Fetch user's Argon2id parameters for HMAC key derivation
         result = await db.execute(
@@ -261,9 +266,20 @@ class AuthService:
                 LoginError: If verification fails
         """
         result = await db.execute(
+            select(Tenant).where(
+                Tenant.customer_number == login_verify_request.customer_number
+            )
+        )
+        tenant = result.scalar_one_or_none()
+        if tenant is None:
+            raise LoginError("Invalid credentials")
+        await set_tenant_context(db, tenant.customer_id)
+
+        result = await db.execute(
             select(User).where(
                 and_(
                     User.email == login_verify_request.email,
+                    User.customer_id == tenant.customer_id,
                     User.is_active == True,
                 )
             )
@@ -271,15 +287,6 @@ class AuthService:
         user = result.scalar_one_or_none()
 
         if not user:
-            raise LoginError("Invalid credentials")
-
-        # Verify customer_number
-        result = await db.execute(
-            select(Tenant).where(Tenant.customer_id == user.customer_id)
-        )
-        tenant = result.scalar_one()
-
-        if tenant.customer_number != login_verify_request.customer_number:
             raise LoginError("Invalid credentials")
 
         # Fetch user's stored_key

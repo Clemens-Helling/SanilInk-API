@@ -20,6 +20,15 @@ class UserCreate(BaseModel):
     last_name: Optional[str] = None
 
 
+class UserUpdate(BaseModel):
+    username: Optional[str] = Field(None, min_length=3, max_length=255)
+    email: Optional[EmailStr] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    permission: Optional[str] = Field(None, max_length=255)
+    is_active: Optional[bool] = None
+
+
 class UserResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

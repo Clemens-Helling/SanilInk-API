@@ -1,0 +1,11 @@
+alembic
+asyncpg
+argon2-cffi
+fastapi
+email-validator
+PyJWT
+PyNaCl
+pydantic-settings
+python-multipart
+sqlalchemy
+uvicorn[standard]
