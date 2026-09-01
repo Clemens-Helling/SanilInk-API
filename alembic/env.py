@@ -15,6 +15,7 @@ from app.core.database import Base
 from app.tenants.models import Tenant  # noqa: F401
 from app.users.models import User, UserKey, CustomerKeySlot  # noqa: F401
 from app.patients.models import Patient, Protocol  # noqa: F401
+from app.intake.models import IntakeKey, PendingIntake  # noqa: F401
 
 config = context.config
 

@@ -377,6 +377,7 @@ class AuthService:
             "user_id": user.user_id,
             "username": user.username,
             "email": user.email,
+            "permission": user.permission,
             "customer_id": user.customer_id,
             "iat": int(now.timestamp()),
             "exp": int(expire.timestamp()),

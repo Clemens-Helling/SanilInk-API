@@ -133,21 +133,60 @@ Der Server sieht zu keinem Zeitpunkt Klartext, Token oder Schlüssel – identis
 
 ---
 
-## 7. Betroffene Datenbank-Tabellen (Schema-Ebene)
+## 7. Einladung neuer User (Invite-Flow)
 
-| Tabelle              | Relevante Felder (opak für Server)                                                                                                                                         |
-| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `users`              | `public_key`, `encrypted_private_key`, Argon2id-Parameter (Salt A/B, time_cost, memory_cost, parallelism), `stored_key`                                                    |
-| `customer_key_slots` | `user_id`, `tenant_id`, `slot_type` (`login` \| `personal_recovery` \| `tenant_breakglass`), `ephemeral_public_key`, `encrypted_gek` (inkl. Nonce)                         |
-| `patients`           | verschlüsselte Feld-Blobs (SecretBox-Ciphertext inkl. Nonce), `tenant_id` (Klartext, für RLS nötig)                                                                        |
-| `intake_keys`        | `tenant_id`, `label`, `public_key` (Klartext, bewusst öffentlich), `encrypted_private_key` (via GEK, inkl. Nonce), `created_by`, `revoked_at`                              |
-| `pending_intakes`    | `tenant_id`, `intake_key_id`, `sealed_payload` (Sealed-Box-Ciphertext), `status` (`pending` \| `claimed` \| `rejected` \| `expired`), `claimed_by`, `resulting_patient_id` |
+**Use Case:** Ein bestehendes Tenant-Mitglied lädt eine neue Person zum Tenant ein. Anders als beim Passwort-Reset kann der Invite-Link **kein** fertiges Krypto-Material transportieren, da der `public_key` der neuen Person erst bei deren Registrierung entsteht (Henne-Ei-Problem). Der Flow ist deshalb zwangsläufig **dreiphasig** und folgt strukturell demselben Muster wie der Intake-Flow (Abschnitt 6) – nur mit vertauschten Rollen: dort verschlüsselt eine unauthentifizierte Person für eine bekannte Key-Referenz, hier verschlüsselt ein authentifiziertes Mitglied die GEK für eine neu bekannt gewordene Identität.
+
+### 7.1 Phase 1 – Invite erzeugen (eingeloggtes, berechtigtes Mitglied)
+
+1. **Server:** legt Eintrag in `pending_registrations` an: `{tenant_id, email, invite_token_hash, proposed_role, invited_by, expires_at, status="invited"}`
+2. **Server:** generiert `invite_token` (≥256 Bit Zufall, URL-safe) und gibt ihn **nur einmal** zurück; persistiert wird ausschließlich `SHA256(invite_token)` (analog zum `stored_key`-Prinzip aus Abschnitt 3 – Token nie im Klartext persistiert)
+3. Link enthält **ausschließlich** das Token, kein Krypto-Material, keine `tenant_id`, keine Rolle:
+   ```
+   https://app.sanilink/invite/{invite_token}
+   ```
+   (`tenant_id` bewusst nicht im Link → sonst enumerierbar; wird serverseitig über den Token-Hash aufgelöst)
+
+### 7.2 Phase 2 – Registrierung durch die neue Person (unauthentifiziert)
+
+1. Link öffnen → Token gegen `pending_registrations` validieren (`compare_digest` auf Hash, `expires_at`, `status="invited"`, single-use)
+2. Normale Registrierung wie in Abschnitt 2 (Keypair generieren, Argon2id ×2 für `key_encryption_key`/`hmac_key`, `stored_key`, …)
+3. **Wichtig:** In dieser Phase wird noch **kein** Eintrag in `customer_key_slots` angelegt – die Person hat einen Account + `public_key`, aber noch keinen GEK-Zugriff
+4. `pending_registrations.status = "awaiting_key_grant"`
+
+### 7.3 Phase 3 – Key-Grant durch ein bestehendes Mitglied (GEK bereits im RAM)
+
+1. Nach Login sieht ein berechtigtes Mitglied offene `awaiting_key_grant`-Einträge des Tenants – gleiches UI-Muster wie die Intake-Inbox (Abschnitt 6.3)
+2. **Client:** holt `public_key` der neuen Person, berechnet `gek_box = Box(ephemeral_private_key, new_user.public_key).encrypt(GEK)` (ephemeres Sender-Keypair, wird verworfen – identisch zu Registrierung Schritt 8)
+3. **→ Server:** neuer Eintrag in `customer_key_slots` (`slot_type = "login"`)
+4. `pending_registrations.status = "active"`, `granted_by`/`granted_at` gesetzt
+
+### 7.4 Sicherheits-/Betriebsaspekte
+
+- **Kein Auto-Grant:** Analog zu Prinzip 7 (kein Auto-Promote bei Intakes) erfolgt der Key-Grant nie automatisch, sondern erfordert eine explizite Aktion eines bestehenden Mitglieds mit GEK-Zugriff im RAM
+- **Race Condition bei Phase 3:** Zwei Mitglieder granten potenziell gleichzeitig → `UPDATE ... WHERE status='awaiting_key_grant'` mit Row-Lock/optimistic Check; zweiter Versuch erhält „bereits gegrantet"
+- `POST /invite/{invite_token}/register` ist – wie `POST /intake/{intake_key_id}/submit` – ein unauthentifizierter Schreibendpoint → gleiches Rate-Limiting-Muster (IP + Token-basiertes Sliding Window) nötig
+- E-Mail-Adresse steckt **nicht** im Link (PII-Leak-Risiko bei Logging/Weiterleitung); Server zeigt sie erst nach erfolgreicher Token-Validierung an
+- Wer Invites erstellen bzw. Key-Grants durchführen darf, hängt an der noch offenen Rollen-Modellierung (siehe Abschnitt 10)
+
+---
+
+## 8. Betroffene Datenbank-Tabellen (Schema-Ebene)
+
+| Tabelle                 | Relevante Felder (opak für Server)                                                                                                                                                        |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `users`                 | `public_key`, `encrypted_private_key`, Argon2id-Parameter (Salt A/B, time_cost, memory_cost, parallelism), `stored_key`                                                                   |
+| `customer_key_slots`    | `user_id`, `tenant_id`, `slot_type` (`login` \| `personal_recovery` \| `tenant_breakglass`), `ephemeral_public_key`, `encrypted_gek` (inkl. Nonce)                                        |
+| `patients`              | verschlüsselte Feld-Blobs (SecretBox-Ciphertext inkl. Nonce), `tenant_id` (Klartext, für RLS nötig)                                                                                       |
+| `intake_keys`           | `tenant_id`, `label`, `public_key` (Klartext, bewusst öffentlich), `encrypted_private_key` (via GEK, inkl. Nonce), `created_by`, `revoked_at`                                             |
+| `pending_intakes`       | `tenant_id`, `intake_key_id`, `sealed_payload` (Sealed-Box-Ciphertext), `status` (`pending` \| `claimed` \| `rejected` \| `expired`), `claimed_by`, `resulting_patient_id`                |
+| `pending_registrations` | `tenant_id`, `email`, `invite_token_hash`, `proposed_role`, `invited_by`, `expires_at`, `status` (`invited` \| `awaiting_key_grant` \| `active` \| `expired`), `granted_by`, `granted_at` |
 
 RLS-Policies filtern serverseitig strikt nach `tenant_id`; das ersetzt nicht die Verschlüsselung, sondern ergänzt sie.
 
 ---
 
-## 8. Sicherheitsinvarianten (dürfen von keiner Implementierung verletzt werden)
+## 9. Sicherheitsinvarianten (dürfen von keiner Implementierung verletzt werden)
 
 1. Server sieht niemals: Passwort, `hmac_key`, `key_encryption_key`, `private_key`, `GEK`, Patienten-Klartext.
 2. Jeder `challenge_nonce` ist single-use – kein statischer Proof-Wert wird je zweimal akzeptiert.
@@ -156,19 +195,21 @@ RLS-Policies filtern serverseitig strikt nach `tenant_id`; das ersetzt nicht die
 5. GEK-Offboarding eines Users = Löschen seines Slots in `customer_key_slots`, **keine** GEK-Rotation (Rotation ist reserviert für aktive Kompromittierungsfälle).
 6. Kein externes HMAC über SecretBox-Ciphertext (Poly1305 liefert bereits Authentizität – redundant und wurde bewusst entfernt).
 7. Automatisches Übernehmen von `pending_intakes` in `patients` ohne explizite menschliche Bestätigung ist untersagt (Auto-Decrypt/Anzeige ist ok, Auto-Promote nicht).
+8. `invite_token` wird serverseitig nie im Klartext persistiert, nur als Hash (analog `stored_key`); GEK-Key-Grant für neue User erfolgt nie automatisch, sondern erfordert explizite Aktion eines bestehenden Mitglieds mit GEK im RAM.
 
 ---
 
-## 9. Bewusst noch offene / vertagte Punkte
+## 10. Bewusst noch offene / vertagte Punkte
 
-- **Rollen-Modellierung:** auf `users`-Tabelle direkt oder eigene `tenant_memberships`-Tabelle? (Nicht entschieden – betrifft auch: wer darf Intake-Keys anlegen/widerrufen?)
+- **Rollen-Modellierung:** auf `users`-Tabelle direkt oder eigene `tenant_memberships`-Tabelle? (Nicht entschieden – betrifft auch: wer darf Intake-Keys anlegen/widerrufen, wer darf Invites erstellen bzw. Key-Grants durchführen?)
 - **Recovery-Key-Flow:** Scope unklar – persönliche Passwort-Wiederherstellung vs. tenant-weiter Break-Glass-Zugriff. Geplantes Muster (sobald Scope steht): High-Entropy-Mnemonic → deterministisches X25519-Keypair via `crypto_box_seed_keypair(seed)` → normaler Eintrag in `customer_key_slots`; Single-Use-Rotation-Prinzip.
 - **Intake-Key-Management:** Rate-Limiting-Strategie für den unauthentifizierten Submit-Endpoint (DB-basiertes Sliding-Window analog zu Login-Nonces, oder doch Ausnahme vom Redis-Verzicht?); Aufbewahrungs-/Löschfrist für unbeanspruchte `pending_intakes`.
+- **Invite-Flow (Abschnitt 7):** gleiche Rate-Limiting-Frage wie beim Intake-Submit für `POST /invite/{invite_token}/register`; Ablauffrist für `expires_at` (Vorschlag: 7 Tage, noch nicht final); Umgang mit „registriert, aber niemand grantet GEK" (Reminder/Eskalation nötig, oder reicht Queue-Anzeige beim nächsten Login eines beliebigen aktiven Mitglieds?).
 - **Explizit out of scope (aktuell):** Redis, Per-Department-GEKs, Key Escrow, vollständige Recovery-Key-Implementierung, Dual-Control für Break-Glass.
 
 ---
 
-## 10. Implementierungs-Hinweise für KI-Assistenten
+## 11. Implementierungs-Hinweise für KI-Assistenten
 
 - Separate SQLAlchemy-Models und Pydantic-Schemas (kein SQLModel).
 - Async SQLAlchemy 2.0 + asyncpg, Alembic async-kompatibel (`async_engine_from_config`, `run_sync`-Bridge).

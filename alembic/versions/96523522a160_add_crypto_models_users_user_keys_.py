@@ -21,7 +21,9 @@ def upgrade() -> None:
     op.create_table(
         "customers",
         sa.Column("customer_id", sa.Integer(), primary_key=True),
-        sa.Column("customer_number", sa.String(length=100), nullable=False, unique=True),
+        sa.Column(
+            "customer_number", sa.String(length=100), nullable=False, unique=True
+        ),
         sa.Column("contact_person_first_name", sa.String(length=255)),
         sa.Column("contact_person_last_name", sa.String(length=255)),
         sa.Column("email", sa.String(length=100)),
@@ -40,7 +42,9 @@ def upgrade() -> None:
         sa.Column("permission", sa.String(length=255)),
         sa.Column("username", sa.String(length=255)),
         sa.Column("email", sa.String(length=255)),
-        sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.text("true")),
+        sa.Column(
+            "is_active", sa.Boolean(), nullable=False, server_default=sa.text("true")
+        ),
         sa.Column("created_at", sa.DateTime(), server_default=sa.func.now()),
         sa.Column("updated_at", sa.DateTime(), server_default=sa.func.now()),
         sa.UniqueConstraint("email", name="uq_users_email"),
@@ -94,7 +98,9 @@ def upgrade() -> None:
         sa.Column("encrypted_real_name", sa.String()),
         sa.Column("encrypted_real_last_name", sa.String()),
         sa.Column("encrypted_birth_day", sa.String()),
-        sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.text("true")),
+        sa.Column(
+            "is_active", sa.Boolean(), nullable=False, server_default=sa.text("true")
+        ),
     )
 
     op.create_table(
@@ -102,7 +108,9 @@ def upgrade() -> None:
         sa.Column("protokoll_id", sa.Integer(), primary_key=True),
         sa.Column("customer", sa.Integer(), sa.ForeignKey("customers.customer_id")),
         sa.Column("alert_id", sa.Integer(), sa.ForeignKey("alarmierungen.alert_id")),
-        sa.Column("pseudonym", sa.String(length=255), sa.ForeignKey("patient.pseudonym")),
+        sa.Column(
+            "pseudonym", sa.String(length=255), sa.ForeignKey("patient.pseudonym")
+        ),
         sa.Column("teacher_id", sa.Integer(), sa.ForeignKey("teachers.teacher_id")),
         sa.Column("operation_end", sa.DateTime()),
         sa.Column("status", sa.String(length=255)),
@@ -123,7 +131,9 @@ def upgrade() -> None:
     op.create_table(
         "user_keys",
         sa.Column("key_id", sa.Integer(), primary_key=True),
-        sa.Column("user_id", sa.Integer(), sa.ForeignKey("users.User_ID"), nullable=False),
+        sa.Column(
+            "user_id", sa.Integer(), sa.ForeignKey("users.User_ID"), nullable=False
+        ),
         sa.Column("public_key", sa.String(), nullable=False),
         sa.Column("encrypted_private_key", sa.String(), nullable=False),
         sa.Column("argon2_salt", sa.String(length=255), nullable=False),
@@ -136,14 +146,23 @@ def upgrade() -> None:
         sa.Column("argon2_memory_cost_b", sa.Integer(), nullable=False),
         sa.Column("argon2_parallelism_b", sa.Integer(), nullable=False),
         sa.Column("created_at", sa.DateTime(), server_default=sa.func.now()),
-        sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.text("true")),
+        sa.Column(
+            "is_active", sa.Boolean(), nullable=False, server_default=sa.text("true")
+        ),
     )
 
     op.create_table(
         "customer_key_slots",
         sa.Column("slot_id", sa.Integer(), primary_key=True),
-        sa.Column("customer_id", sa.Integer(), sa.ForeignKey("customers.customer_id"), nullable=False),
-        sa.Column("user_id", sa.Integer(), sa.ForeignKey("users.User_ID"), nullable=False),
+        sa.Column(
+            "customer_id",
+            sa.Integer(),
+            sa.ForeignKey("customers.customer_id"),
+            nullable=False,
+        ),
+        sa.Column(
+            "user_id", sa.Integer(), sa.ForeignKey("users.User_ID"), nullable=False
+        ),
         sa.Column("ephemeral_public_key", sa.String(length=255), nullable=False),
         sa.Column("encrypted_gek", sa.String(), nullable=False),
         sa.Column("created_at", sa.DateTime(), server_default=sa.func.now()),
@@ -172,13 +191,13 @@ def downgrade() -> None:
     op.execute("DROP POLICY IF EXISTS patient_tenant_isolation ON patient")
     op.execute("ALTER TABLE patient DISABLE ROW LEVEL SECURITY")
 
-    op.drop_table("customer_key_slots")
-    op.drop_table("user_keys")
-    op.drop_table("protokolle")
-    op.drop_table("patient")
-    op.drop_table("alarmierungen")
-    op.drop_table("departements")
-    op.drop_table("locations")
-    op.drop_table("teachers")
-    op.drop_table("users")
-    op.drop_table("customers")
+    op.drop_table("customer_key_slots", if_exists=True)
+    op.drop_table("user_keys", if_exists=True)
+    op.drop_table("protokolle", if_exists=True)
+    op.drop_table("patient", if_exists=True)
+    op.drop_table("alarmierungen", if_exists=True)
+    op.drop_table("departements", if_exists=True)
+    op.drop_table("locations", if_exists=True)
+    op.drop_table("teachers", if_exists=True)
+    op.drop_table("users", if_exists=True)
+    op.drop_table("customers", if_exists=True)

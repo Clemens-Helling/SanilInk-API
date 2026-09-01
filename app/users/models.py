@@ -1,7 +1,21 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, func
+import enum
+
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    Column,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    func,
+)
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
+from app.invite.models import PendingRegistration
 
 
 class User(Base):
@@ -33,6 +47,26 @@ class User(Base):
     )
     customer_key_slots = relationship(
         "CustomerKeySlot", back_populates="user", cascade="all, delete-orphan"
+    )
+
+    # Invites, die dieser User verschickt hat (Phase 1)
+    invites_sent = relationship(
+        "PendingRegistration",
+        foreign_keys="PendingRegistration.invited_by",
+        back_populates="invited_by_user",
+    )
+    # Der eigene Invite-Eintrag, falls dieser User über einen Invite registriert wurde (Phase 2)
+    own_registration = relationship(
+        "PendingRegistration",
+        foreign_keys="PendingRegistration.user_id",
+        back_populates="registered_user",
+        uselist=False,
+    )
+    # Key-Grants, die dieser User für andere durchgeführt hat (Phase 3)
+    grants_given = relationship(
+        "PendingRegistration",
+        foreign_keys="PendingRegistration.granted_by",
+        back_populates="granted_by_user",
     )
 
 
