@@ -1,6 +1,7 @@
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.users.models import User
 from app.users.schemas import UserCreate, UserUpdate
@@ -14,14 +15,14 @@ class UserService:
     @staticmethod
     async def list_users(db: AsyncSession, customer_id: int) -> list[User]:
         result = await db.execute(
-            select(User).where(User.customer_id == customer_id).order_by(User.user_id)
+            select(User).options(selectinload(User.customer_key_slots)).where(User.customer_id == customer_id).order_by(User.user_id)
         )
         return list(result.scalars().all())
 
     @staticmethod
     async def get_user(db: AsyncSession, user_id: int, customer_id: int) -> User:
         result = await db.execute(
-            select(User).where(
+            select(User).options(selectinload(User.customer_key_slots)).where(
                 User.user_id == user_id,
                 User.customer_id == customer_id,
             )

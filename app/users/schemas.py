@@ -40,6 +40,7 @@ class UserResponse(BaseModel):
     last_name: Optional[str] = None
     permission: Optional[str] = None
     is_active: bool
+    has_gek_slot: bool = False
     created_at: datetime
     updated_at: datetime
 

@@ -49,6 +49,10 @@ class User(Base):
         "CustomerKeySlot", back_populates="user", cascade="all, delete-orphan"
     )
 
+    @property
+    def has_gek_slot(self) -> bool:
+        return bool(self.customer_key_slots)
+
     # Invites, die dieser User verschickt hat (Phase 1)
     invites_sent = relationship(
         "PendingRegistration",

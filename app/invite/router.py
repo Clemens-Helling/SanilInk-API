@@ -14,6 +14,8 @@ from app.invite.schemas import (
     InviteGrantResponse,
     InviteRegisterRequest,
     InviteRegisterResponse,
+    InviteListResponse,
+    PendingRegistrationOut,
     PendingGrantListResponse,
     PendingGrantOut,
 )
@@ -62,6 +64,15 @@ async def invite_user(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)
         ) from exc
+
+
+@router.get("/", response_model=InviteListResponse)
+async def list_invites(
+    payload: dict = Depends(require_admin),
+    db: AsyncSession = Depends(get_tenant_db),
+) -> InviteListResponse:
+    invites = await PendingRegistrationService.list_invites(db, customer_id=payload["customer_id"])
+    return InviteListResponse(invites=[PendingRegistrationOut.model_validate(invite) for invite in invites])
 
 
 @router.get("/pending-grants", response_model=PendingGrantListResponse)
@@ -118,7 +129,7 @@ async def revoke_invite(
     """
     try:
         await PendingRegistrationService.revoke_invite(
-            db=db, registration_id=registration_id
+            db=db, registration_id=registration_id, customer_id=payload["customer_id"]
         )
         return {"message": f"Invitation {registration_id} revoked"}
     except Exception as exc:

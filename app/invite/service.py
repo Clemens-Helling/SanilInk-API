@@ -23,6 +23,15 @@ class PendingRegistrationServiceError(Exception):
 
 class PendingRegistrationService:
     @staticmethod
+    async def list_invites(db: AsyncSession, *, customer_id: int) -> list[PendingRegistration]:
+        result = await db.execute(
+            select(PendingRegistration)
+            .where(PendingRegistration.customer_id == customer_id)
+            .order_by(PendingRegistration.created_at.desc())
+        )
+        return list(result.scalars().all())
+
+    @staticmethod
     async def create_invite(
         db: AsyncSession,
         *,
@@ -59,10 +68,11 @@ class PendingRegistrationService:
         return invite_token, pending_registration
 
     @staticmethod
-    async def revoke_invite(db: AsyncSession, *, registration_id: int) -> None:
+    async def revoke_invite(db: AsyncSession, *, registration_id: int, customer_id: int) -> None:
         result = await db.execute(
             select(PendingRegistration).where(
-                PendingRegistration.registration_id == registration_id
+                PendingRegistration.registration_id == registration_id,
+                PendingRegistration.customer_id == customer_id,
             )
         )
         pending_registration = result.scalar_one_or_none()
