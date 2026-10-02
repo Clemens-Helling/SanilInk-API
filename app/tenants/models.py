@@ -63,39 +63,3 @@ class Building(Base):
             "country_code ~ '^[A-Z]{2}$'", name="ck_buildings_country_code"
         ),
     )
-
-
-class FirstAidKit(Base):
-    __tablename__ = "first_aid_kits"
-
-    kit_id = Column(Integer, primary_key=True)
-    customer_id = Column(
-        Integer, ForeignKey("customers.customer_id"), nullable=False, index=True
-    )
-    building_id = Column(Integer, nullable=False, index=True)
-    label = Column(String(100), nullable=False)
-    location_detail = Column(String(200), nullable=True)
-    is_active = Column(Boolean, nullable=False, default=True, server_default="true")
-    created_at = Column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
-    updated_at = Column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        onupdate=func.now(),
-        nullable=False,
-    )
-
-    building = relationship("Building", back_populates="kits")
-    intake_keys = relationship("IntakeKey", back_populates="kit")
-
-    __table_args__ = (
-        ForeignKeyConstraint(
-            ["customer_id", "building_id"],
-            ["buildings.customer_id", "buildings.building_id"],
-            name="fk_kits_customer_building",
-        ),
-        # Ziel für den Composite-FK aus intake_keys
-        UniqueConstraint("customer_id", "kit_id", name="uq_kits_customer_kit"),
-        UniqueConstraint("customer_id", "label", name="uq_kits_customer_label"),
-    )

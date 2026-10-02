@@ -8,10 +8,11 @@ from sqlalchemy import (
     Boolean,
     DateTime,
     ForeignKey,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.orm import relationship
-
+from app.aid_kits.models import FirstAidKit
 from app.core.database import Base
 
 
@@ -84,4 +85,9 @@ class PendingIntake(Base):
             name="ck_pending_intakes_payload_size",
         ),
         Index("ix_pending_intakes_inbox", "customer_id", "status"),
+        UniqueConstraint(
+            "customer_id",
+            "pending_intake_id",
+            name="uq_pending_intakes_customer_intake",
+        ),
     )
