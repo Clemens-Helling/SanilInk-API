@@ -1,4 +1,10 @@
+from sqlalchemy.orm import configure_mappers
+
 from app.main import app
+
+
+def test_orm_mappers_configure():
+    configure_mappers()
 
 
 def test_intake_routes_are_registered():

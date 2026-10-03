@@ -7,6 +7,7 @@ from app.tenants.router import router as tenants_router
 from app.patients.router import router as patients_router
 from app.intake.router import router as intake_router
 from app.invite.router import router as invite_router
+from app.aid_kits.router import router as aid_kits_router
 
 app = FastAPI()
 
@@ -27,3 +28,4 @@ app.include_router(tenants_router, prefix="/tenants", tags=["tenants"])
 app.include_router(patients_router, prefix="/patients", tags=["patients"])
 app.include_router(intake_router, prefix="/intake", tags=["intake"])
 app.include_router(invite_router, prefix="/invite", tags=["invite"])
+app.include_router(aid_kits_router, prefix="/aid-kits", tags=["aid-kits"])

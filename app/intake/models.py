@@ -34,6 +34,7 @@ class IntakeKey(Base):
     created_at = Column(DateTime, server_default=func.now())
 
     creator = relationship("User")
+    kit = relationship("FirstAidKit", back_populates="intake_keys")
 
 
 class PendingIntake(Base):

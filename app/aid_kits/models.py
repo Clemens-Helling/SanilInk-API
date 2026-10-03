@@ -107,8 +107,8 @@ class KitItem(Base):
         nullable=False,
     )
 
-    kit = relationship("FirstAidKit")
-    article = relationship("Article")
+    kit = relationship("FirstAidKit", foreign_keys=[kit_id])
+    article = relationship("Article", foreign_keys=[article_id])
 
     __table_args__ = (
         ForeignKeyConstraint(
