@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_tenant_db
@@ -22,8 +23,12 @@ async def get_buildings(
     db: AsyncSession = Depends(get_tenant_db),
 ):
     """Get all buildings for the current tenant."""
-    tenant_id = payload["tenant_id"]
-    result = await db.execute(select(Building).where(Building.customer_id == tenant_id))
+    customer_id = payload["customer_id"]
+    result = await db.execute(
+        select(Building)
+        .where(Building.customer_id == customer_id)
+        .order_by(Building.building_name)
+    )
     return result.scalars().all()
 
 
@@ -34,13 +39,16 @@ async def get_building(
     db: AsyncSession = Depends(get_tenant_db),
 ):
     """Get a specific building by ID for the current tenant."""
-    tenant_id = payload["tenant_id"]
+    customer_id = payload["customer_id"]
     result = await db.execute(
         select(Building).where(
-            Building.customer_id == tenant_id, Building.building_id == building_id
+            Building.customer_id == customer_id, Building.building_id == building_id
         )
     )
-    return result.scalars().first()
+    building = result.scalar_one_or_none()
+    if building is None:
+        raise HTTPException(status_code=404, detail="Building not found")
+    return building
 
 
 @router.post("/buildings", response_model=BuildingResponse)
@@ -50,7 +58,7 @@ async def create_building(
     db: AsyncSession = Depends(get_tenant_db),
 ):
     """Create a new building for the current tenant."""
-    tenant_id = payload["tenant_id"]
+    customer_id = payload["customer_id"]
     db_building = Building(
         building_name=building.building_name,
         street=building.street,
@@ -59,10 +67,16 @@ async def create_building(
         city=building.city,
         country_code=building.country_code,
         address_additional=building.address_additional,
-        customer_id=tenant_id,
+        customer_id=customer_id,
     )
     db.add(db_building)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=409, detail="A building with this name already exists"
+        ) from exc
     await db.refresh(db_building)
     return db_building
 
@@ -75,13 +89,13 @@ async def update_building(
     db: AsyncSession = Depends(get_tenant_db),
 ):
     """Update a specific building by ID for the current tenant."""
-    tenant_id = payload["tenant_id"]
+    customer_id = payload["customer_id"]
     result = await db.execute(
         select(Building).where(
-            Building.customer_id == tenant_id, Building.building_id == building_id
+            Building.customer_id == customer_id, Building.building_id == building_id
         )
     )
-    db_building = result.scalars().first()
+    db_building = result.scalar_one_or_none()
     if not db_building:
         raise HTTPException(status_code=404, detail="Building not found")
     db_building.building_name = building.building_name
@@ -91,7 +105,13 @@ async def update_building(
     db_building.city = building.city
     db_building.country_code = building.country_code
     db_building.address_additional = building.address_additional
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=409, detail="A building with this name already exists"
+        ) from exc
     await db.refresh(db_building)
     return db_building
 
@@ -103,15 +123,22 @@ async def delete_building(
     db: AsyncSession = Depends(get_tenant_db),
 ):
     """Delete a specific building by ID for the current tenant."""
-    tenant_id = payload["tenant_id"]
+    customer_id = payload["customer_id"]
     result = await db.execute(
         select(Building).where(
-            Building.customer_id == tenant_id, Building.building_id == building_id
+            Building.customer_id == customer_id, Building.building_id == building_id
         )
     )
-    db_building = result.scalars().first()
+    db_building = result.scalar_one_or_none()
     if not db_building:
         raise HTTPException(status_code=404, detail="Building not found")
     await db.delete(db_building)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="The building cannot be deleted because it is referenced by other records",
+        ) from exc
     return {"message": "Building deleted successfully"}
