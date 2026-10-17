@@ -14,6 +14,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import relationship
 from app.aid_kits.models import FirstAidKit
 from app.core.database import Base
+from app.patients.models import Patient
 
 
 class IntakeKey(Base):

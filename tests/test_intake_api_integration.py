@@ -1,9 +1,11 @@
 from sqlalchemy.orm import configure_mappers
 
+from app.core.database import Base
 from app.main import app
 
 
 def test_orm_mappers_configure():
+    assert "patient" in Base.metadata.tables
     configure_mappers()
 
 

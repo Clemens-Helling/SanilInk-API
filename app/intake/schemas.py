@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class IntakeKeyCreate(BaseModel):
+    kit_id: int = Field(..., gt=0)
     label: str = Field(..., min_length=2, max_length=255)
     public_key: str = Field(..., min_length=40, max_length=255)
     encrypted_private_key: str = Field(..., min_length=100)
@@ -15,6 +16,7 @@ class IntakeKeyResponse(BaseModel):
 
     intake_key_id: int
     customer_id: int
+    kit_id: int
     label: str
     public_key: str
     created_by: int
@@ -23,7 +25,7 @@ class IntakeKeyResponse(BaseModel):
 
 
 class IntakeSubmitRequest(BaseModel):
-    sealed_payload: str = Field(..., min_length=50)
+    sealed_payload: str = Field(..., min_length=50, max_length=87384)
 
 
 class IntakeSubmitResponse(BaseModel):

@@ -1,3 +1,6 @@
+import base64
+import binascii
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,6 +17,7 @@ class IntakeService:
         db: AsyncSession,
         *,
         customer_id: int,
+        kit_id: int,
         created_by: int,
         label: str,
         public_key: str,
@@ -21,6 +25,7 @@ class IntakeService:
     ) -> IntakeKey:
         intake_key = IntakeKey(
             customer_id=customer_id,
+            kit_id=kit_id,
             label=label,
             public_key=public_key,
             encrypted_private_key=encrypted_private_key,
@@ -35,14 +40,12 @@ class IntakeService:
     async def submit_anonymous_intake(
         db: AsyncSession,
         *,
-        customer_id: int,
         intake_key_id: int,
         sealed_payload: str,
     ) -> PendingIntake:
         result = await db.execute(
             select(IntakeKey).where(
                 IntakeKey.intake_key_id == intake_key_id,
-                IntakeKey.customer_id == customer_id,
                 IntakeKey.revoked_at.is_(None),
             )
         )
@@ -50,10 +53,17 @@ class IntakeService:
         if intake_key is None:
             raise IntakeServiceError("Intake key not found or revoked")
 
+        try:
+            payload_bytes = base64.b64decode(sealed_payload, validate=True)
+        except (binascii.Error, ValueError) as exc:
+            raise IntakeServiceError("Invalid sealed payload encoding") from exc
+        if len(payload_bytes) > 65536:
+            raise IntakeServiceError("Sealed payload exceeds the maximum size")
+
         pending = PendingIntake(
-            customer_id=customer_id,
+            customer_id=intake_key.customer_id,
             intake_key_id=intake_key_id,
-            sealed_payload=sealed_payload,
+            sealed_payload=payload_bytes,
             status="pending",
         )
         db.add(pending)
