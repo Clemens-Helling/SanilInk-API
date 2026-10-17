@@ -118,6 +118,36 @@ def test_anonymous_intake_rejects_missing_or_revoked_key():
     db.commit.assert_not_awaited()
 
 
+def test_claim_intake_sets_claimed_fields_for_customer():
+    db = MagicMock(spec=AsyncSession)
+    db.execute = AsyncMock()
+    db.commit = AsyncMock()
+    db.refresh = AsyncMock()
+    pending = MagicMock(spec=PendingIntake)
+    pending.status = "pending"
+    pending.claimed_by = None
+    pending.claimed_at = None
+    result = MagicMock()
+    result.scalar_one_or_none.return_value = pending
+    db.execute.return_value = result
+
+    claimed = asyncio.run(
+        IntakeService.claim_intake(
+            db,
+            customer_id=17,
+            pending_intake_id=9,
+            claimed_by=2,
+        )
+    )
+
+    statement = db.execute.await_args.args[0]
+    assert "pending_intakes.customer_id = :customer_id_1" in str(statement)
+    assert claimed.status == "claimed"
+    assert claimed.claimed_by == 2
+    assert claimed.claimed_at is not None
+    db.commit.assert_awaited_once()
+
+
 def test_revoke_intake_key_is_customer_scoped_and_preserves_key():
     db = MagicMock(spec=AsyncSession)
     db.execute = AsyncMock()

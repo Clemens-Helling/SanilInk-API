@@ -1,8 +1,9 @@
 import base64
 import binascii
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
 from app.intake.models import IntakeKey, PendingIntake
 
@@ -79,6 +80,9 @@ class IntakeService:
     ) -> list[PendingIntake]:
         result = await db.execute(
             select(PendingIntake)
+            .options(
+                joinedload(PendingIntake.intake_key).joinedload(IntakeKey.kit)
+            )
             .where(PendingIntake.customer_id == customer_id)
             .where(PendingIntake.status == "pending")
             .order_by(PendingIntake.created_at.desc())
@@ -106,6 +110,7 @@ class IntakeService:
 
         pending.status = "claimed"
         pending.claimed_by = claimed_by
+        pending.claimed_at = func.now()
         await db.commit()
         await db.refresh(pending)
         return pending

@@ -1,3 +1,5 @@
+import base64
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -132,6 +134,11 @@ async def list_pending_intakes(
         PendingIntakeResponse(
             pending_intake_id=item.pending_intake_id,
             intake_key_id=item.intake_key_id,
+            sealed_payload=base64.b64encode(item.sealed_payload).decode("ascii"),
+            public_key=item.intake_key.public_key,
+            encrypted_private_key=item.intake_key.encrypted_private_key,
+            kit_label=item.intake_key.kit.label,
+            kit_location_detail=item.intake_key.kit.location_detail,
             status=item.status,
             created_at=item.created_at,
             claimed_by=item.claimed_by,
@@ -139,6 +146,31 @@ async def list_pending_intakes(
         )
         for item in items
     ]
+
+
+@router.post(
+    "/pending/{pending_intake_id}/claim",
+    response_model=IntakeSubmitResponse,
+)
+async def claim_pending_intake(
+    pending_intake_id: int,
+    payload: dict = Depends(get_current_token_payload),
+    db: AsyncSession = Depends(get_tenant_db),
+) -> IntakeSubmitResponse:
+    """Mark a tenant-scoped pending intake as claimed by the current staff member."""
+    try:
+        pending = await IntakeService.claim_intake(
+            db,
+            customer_id=payload["customer_id"],
+            pending_intake_id=pending_intake_id,
+            claimed_by=payload["user_id"],
+        )
+    except IntakeServiceError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return IntakeSubmitResponse(
+        pending_intake_id=pending.pending_intake_id,
+        status=pending.status,
+    )
 
 
 @router.post(

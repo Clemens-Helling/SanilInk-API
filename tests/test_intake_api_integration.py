@@ -15,3 +15,4 @@ def test_intake_routes_are_registered():
     assert "/intake/{intake_key_id}/submit" in paths
     assert "/intake/keys" in paths
     assert "/intake/pending" in paths
+    assert "/intake/pending/{pending_intake_id}/claim" in paths

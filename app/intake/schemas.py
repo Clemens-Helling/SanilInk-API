@@ -40,6 +40,11 @@ class PendingIntakeResponse(BaseModel):
 
     pending_intake_id: int
     intake_key_id: int
+    sealed_payload: str
+    public_key: str
+    encrypted_private_key: str
+    kit_label: str
+    kit_location_detail: Optional[str] = None
     status: str
     created_at: datetime
     claimed_by: Optional[int] = None
