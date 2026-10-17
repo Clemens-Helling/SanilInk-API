@@ -35,6 +35,25 @@ class IntakeSubmitResponse(BaseModel):
     status: str
 
 
+class IntakePromotionRequest(BaseModel):
+    encrypted_real_name: str = Field(..., min_length=50)
+    encrypted_real_last_name: str = Field(..., min_length=50)
+    encrypted_birth_day: str = Field(..., min_length=50)
+    encrypted_intake_description: str = Field(..., min_length=50)
+    encrypted_initial_measures: str = Field(..., min_length=50)
+    encrypted_witnesses: str = Field(..., min_length=50)
+
+
+class IntakePromotionResponse(BaseModel):
+    pending_intake_id: int
+    patient_id: int
+    status: str
+
+
+class PendingIntakeCountResponse(BaseModel):
+    count: int
+
+
 class PendingIntakeResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -47,5 +66,3 @@ class PendingIntakeResponse(BaseModel):
     kit_location_detail: Optional[str] = None
     status: str
     created_at: datetime
-    claimed_by: Optional[int] = None
-    resulting_patient_id: Optional[int] = None

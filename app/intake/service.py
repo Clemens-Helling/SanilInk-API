@@ -1,11 +1,15 @@
 import base64
 import binascii
+from datetime import datetime, timezone
+from uuid import uuid4
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
+from app.intake.schemas import IntakePromotionRequest
 from app.intake.models import IntakeKey, PendingIntake
+from app.patients.models import Patient
 
 
 class IntakeServiceError(Exception):
@@ -13,6 +17,22 @@ class IntakeServiceError(Exception):
 
 
 class IntakeService:
+    @staticmethod
+    async def count_pending_intakes(
+        db: AsyncSession,
+        *,
+        customer_id: int,
+    ) -> int:
+        result = await db.execute(
+            select(func.count())
+            .select_from(PendingIntake)
+            .where(
+                PendingIntake.customer_id == customer_id,
+                PendingIntake.status == "pending",
+            )
+        )
+        return result.scalar_one()
+
     @staticmethod
     async def create_intake_key(
         db: AsyncSession,
@@ -90,27 +110,44 @@ class IntakeService:
         return list(result.scalars().all())
 
     @staticmethod
-    async def claim_intake(
+    async def promote_intake(
         db: AsyncSession,
         *,
         customer_id: int,
         pending_intake_id: int,
         claimed_by: int,
-    ) -> PendingIntake:
+        patient_data: IntakePromotionRequest,
+    ) -> tuple[PendingIntake, Patient]:
         result = await db.execute(
-            select(PendingIntake).where(
+            select(PendingIntake)
+            .where(
                 PendingIntake.pending_intake_id == pending_intake_id,
                 PendingIntake.customer_id == customer_id,
                 PendingIntake.status == "pending",
             )
+            .with_for_update()
         )
         pending = result.scalar_one_or_none()
         if pending is None:
-            raise IntakeServiceError("Pending intake not found")
+            raise IntakeServiceError("Pending intake not found or already processed")
 
+        patient = Patient(
+            customer_id=customer_id,
+            encrypted_real_name=patient_data.encrypted_real_name,
+            encrypted_real_last_name=patient_data.encrypted_real_last_name,
+            encrypted_birth_day=patient_data.encrypted_birth_day,
+            encrypted_intake_description=patient_data.encrypted_intake_description,
+            encrypted_initial_measures=patient_data.encrypted_initial_measures,
+            encrypted_witnesses=patient_data.encrypted_witnesses,
+            pseudonym=uuid4().hex,
+            is_active=True,
+        )
+        db.add(patient)
+        await db.flush()
         pending.status = "claimed"
         pending.claimed_by = claimed_by
-        pending.claimed_at = func.now()
+        pending.claimed_at = datetime.now(timezone.utc)
+        pending.resulting_patient_id = patient.patient_id
         await db.commit()
         await db.refresh(pending)
-        return pending
+        return pending, patient

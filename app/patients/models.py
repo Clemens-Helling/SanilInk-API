@@ -23,6 +23,9 @@ class Patient(Base):
     encrypted_real_name = Column(String)
     encrypted_real_last_name = Column(String)
     encrypted_birth_day = Column(String)
+    encrypted_intake_description = Column(String)
+    encrypted_initial_measures = Column(String)
+    encrypted_witnesses = Column(String)
     is_active = Column(Boolean, default=True)
 
 

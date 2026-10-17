@@ -11,6 +11,9 @@ from app.intake.models import IntakeKey
 from app.intake.schemas import (
     IntakeKeyCreate,
     IntakeKeyResponse,
+    PendingIntakeCountResponse,
+    IntakePromotionRequest,
+    IntakePromotionResponse,
     IntakeSubmitRequest,
     IntakeSubmitResponse,
     PendingIntakeResponse,
@@ -141,34 +144,47 @@ async def list_pending_intakes(
             kit_location_detail=item.intake_key.kit.location_detail,
             status=item.status,
             created_at=item.created_at,
-            claimed_by=item.claimed_by,
-            resulting_patient_id=item.resulting_patient_id,
         )
         for item in items
     ]
 
 
-@router.post(
-    "/pending/{pending_intake_id}/claim",
-    response_model=IntakeSubmitResponse,
-)
-async def claim_pending_intake(
-    pending_intake_id: int,
+@router.get("/pending/count", response_model=PendingIntakeCountResponse)
+async def count_pending_intakes(
     payload: dict = Depends(get_current_token_payload),
     db: AsyncSession = Depends(get_tenant_db),
-) -> IntakeSubmitResponse:
-    """Mark a tenant-scoped pending intake as claimed by the current staff member."""
+) -> PendingIntakeCountResponse:
+    count = await IntakeService.count_pending_intakes(
+        db,
+        customer_id=payload["customer_id"],
+    )
+    return PendingIntakeCountResponse(count=count)
+
+
+@router.post(
+    "/pending/{pending_intake_id}/promote",
+    response_model=IntakePromotionResponse,
+)
+async def promote_pending_intake(
+    pending_intake_id: int,
+    patient_data: IntakePromotionRequest,
+    payload: dict = Depends(get_current_token_payload),
+    db: AsyncSession = Depends(get_tenant_db),
+) -> IntakePromotionResponse:
+    """Create an encrypted patient and claim its intake atomically."""
     try:
-        pending = await IntakeService.claim_intake(
+        pending, patient = await IntakeService.promote_intake(
             db,
             customer_id=payload["customer_id"],
             pending_intake_id=pending_intake_id,
             claimed_by=payload["user_id"],
+            patient_data=patient_data,
         )
     except IntakeServiceError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return IntakeSubmitResponse(
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return IntakePromotionResponse(
         pending_intake_id=pending.pending_intake_id,
+        patient_id=patient.patient_id,
         status=pending.status,
     )
 

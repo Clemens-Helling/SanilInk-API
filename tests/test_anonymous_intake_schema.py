@@ -11,7 +11,11 @@ from app.core.database import Base
 from app.intake.models import IntakeKey, PendingIntake
 from app.intake.router import revoke_intake_key
 from app.intake.service import IntakeService, IntakeServiceError
-from app.intake.schemas import IntakeKeyCreate, IntakeKeyResponse
+from app.intake.schemas import (
+    IntakeKeyCreate,
+    IntakeKeyResponse,
+    IntakePromotionRequest,
+)
 
 
 def test_anonymous_intake_tables_exist_in_metadata():
@@ -118,33 +122,54 @@ def test_anonymous_intake_rejects_missing_or_revoked_key():
     db.commit.assert_not_awaited()
 
 
-def test_claim_intake_sets_claimed_fields_for_customer():
+def test_promote_intake_creates_patient_and_claims_intake_atomically():
     db = MagicMock(spec=AsyncSession)
     db.execute = AsyncMock()
     db.commit = AsyncMock()
     db.refresh = AsyncMock()
+    db.flush = AsyncMock()
     pending = MagicMock(spec=PendingIntake)
     pending.status = "pending"
     pending.claimed_by = None
     pending.claimed_at = None
+    pending.resulting_patient_id = None
     result = MagicMock()
     result.scalar_one_or_none.return_value = pending
     db.execute.return_value = result
+    db.flush.side_effect = lambda: setattr(
+        db.add.call_args.args[0], "patient_id", 22
+    )
+    patient_data = IntakePromotionRequest(
+        encrypted_real_name="a" * 60,
+        encrypted_real_last_name="b" * 60,
+        encrypted_birth_day="c" * 60,
+        encrypted_intake_description="d" * 60,
+        encrypted_initial_measures="e" * 60,
+        encrypted_witnesses="f" * 60,
+    )
 
-    claimed = asyncio.run(
-        IntakeService.claim_intake(
+    claimed, patient = asyncio.run(
+        IntakeService.promote_intake(
             db,
             customer_id=17,
             pending_intake_id=9,
             claimed_by=2,
+            patient_data=patient_data,
         )
     )
 
     statement = db.execute.await_args.args[0]
     assert "pending_intakes.customer_id = :customer_id_1" in str(statement)
+    assert "FOR UPDATE" in str(statement)
     assert claimed.status == "claimed"
     assert claimed.claimed_by == 2
     assert claimed.claimed_at is not None
+    assert claimed.resulting_patient_id == 22
+    assert patient.patient_id == 22
+    assert patient.customer_id == 17
+    assert patient.encrypted_initial_measures == "e" * 60
+    db.add.assert_called_once_with(patient)
+    db.flush.assert_awaited_once()
     db.commit.assert_awaited_once()
 
 
